@@ -6,9 +6,9 @@ import asyncio
 
 import numpy as np
 
-from newton_zero.agent.api_connect4 import Connect4ModelAPI
+from newton_zero.agent.api_newton import NewtonModelAPI
 from newton_zero.config import Config
-from newton_zero.env.newton_env import Connect4Env, Winner, Player
+from newton_zero.env.newton_env import NewtonEnv, Winner, Player
 
 import threading
 
@@ -19,13 +19,13 @@ HistoryItem = namedtuple("HistoryItem", "action policy values visit")
 logger = getLogger(__name__)
 
 
-class Connect4Player:
+class NewtonPlayer:
     def __init__(self, config: Config, model, play_config=None, mem=None):
 
         self.config = config
         self.model = model
         self.play_config = play_config or self.config.play
-        self.api = Connect4ModelAPI(self.config, self.model)
+        self.api = NewtonModelAPI(self.config, self.model)
 
         self.labels_n = config.n_labels
         self.var_n = defaultdict(lambda: np.zeros((self.labels_n,)))
@@ -55,7 +55,7 @@ class Connect4Player:
 
     def action(self, board, turn):
 
-        env = Connect4Env().update(board, turn)
+        env = NewtonEnv().update(board, turn)
         key = self.counter_key(env)
 
         for tl in range(self.play_config.thinking_loop):
@@ -93,12 +93,12 @@ class Connect4Player:
     async def start_search_my_move(self, board, turn):
         self.running_simulation_num += 1
         with await self.sem:  # reduce parallel search number
-            env = Connect4Env().update(board, turn)
+            env = NewtonEnv().update(board, turn)
             leaf_v = await self.search_my_move(env, is_root_node=True)
             self.running_simulation_num -= 1
             return leaf_v
 
-    async def search_my_move(self, env: Connect4Env, is_root_node=False):
+    async def search_my_move(self, env: NewtonEnv, is_root_node=False):
         """
 
         Q, V is value for this Player(always white).
@@ -131,6 +131,7 @@ class Connect4Player:
         action_t = self.select_action_q_and_u(env, is_root_node)
         _, _ = env.step(action_t)
 
+        # back propagate the values upward the search tree
         virtual_loss = self.config.play.virtual_loss
         self.var_n[key][action_t] += virtual_loss
         self.var_w[key][action_t] -= virtual_loss
@@ -164,6 +165,8 @@ class Connect4Player:
         state = [black_ary, white_ary] if env.player_turn() == Player.black else [white_ary, black_ary]
         future = await self.predict(np.array(state))  # type: Future
         await future
+
+        # obtain the predicted policy and value
         leaf_p, leaf_v = future.result()
 
         self.var_p[key] = leaf_p  # P is value for next_player (black or white)
@@ -200,21 +203,19 @@ class Connect4Player:
 
     def finish_game(self, z):
         """
-
+        Records the game winner result to all past moves
         :param z: win=1, lose=-1, draw=0
         :return:
         """
         for move in self.moves:  # add this game winner result to all past moves.
             move += [z]
 
-    # TODO: not sure if should use MCRAVE in calc policy, why does it use n?
-    # TODO: investigate what it is used for
     def calc_policy(self, board, turn):
-        """calc π(a|s0)
+        """compute π(a|s0)
         :return:
         """
         pc = self.play_config
-        env = Connect4Env().update(board, turn)
+        env = NewtonEnv().update(board, turn)
         key = self.counter_key(env)
         if env.turn < pc.change_tau_turn:
             return self.var_n[key] / np.sum(self.var_n[key])  # tau = 1
@@ -225,10 +226,13 @@ class Connect4Player:
             return ret
 
     @staticmethod
-    def counter_key(env: Connect4Env):
+    def counter_key(env: NewtonEnv):
         return CounterKey(env.observation, env.turn)
 
     def select_action_q_and_u(self, env, is_root_node):
+        '''
+        Selects the next action in the MCTS expansion using UCT
+        '''
         key = self.counter_key(env)
 
         legal_moves = env.legal_moves()
@@ -238,7 +242,7 @@ class Connect4Player:
         xx_ = max(xx_, 1)  # avoid u_=0 if N is all 0
         p_ = self.var_p[key]
 
-        if is_root_node:  # Is it correct?? -> (1-e)p + e*Dir(0.03)
+        if is_root_node:
             p_ = (1 - self.play_config.noise_eps) * p_ + \
                  self.play_config.noise_eps * np.random.dirichlet([self.play_config.dirichlet_alpha] * self.labels_n)
 
@@ -253,10 +257,14 @@ class Connect4Player:
         action_t = int(np.argmax(v_))
         return action_t
 
-'''@Harvey Add'''
 class MCTSMemory:
-    # TODO: is black move just the negative value? verify pls.
     def __init__(self, config: Config, capacity=5000):
+        '''
+        Memory module for MCTS, use LRU replacement policy
+        :param config:
+        :param capacity: capacity of the memory buffer
+        '''
+
         self.lock = threading.Lock()
         self.labels_n = config.n_labels
         self.keys = []
@@ -265,8 +273,8 @@ class MCTSMemory:
         self.capacity = capacity
 
     def update(self, key, action, leaf_v):
+        ''' Updates the count N and q value based on leaf value'''
         self.lock.acquire()
-        #print("MCTSMemory Update: Acquired the MCTSMemory updated lock")
         if key in self.keys:
             self.keys.remove(key)
         self.keys.insert(0, key)
@@ -274,49 +282,42 @@ class MCTSMemory:
         while len(self.keys) > self.capacity:
             self._remove_last_element()
 
-        # TODO: remove this assertion later (check uniqueness)
-
         self.amaf_n[key][action] = self.amaf_n[key][action] + 1
         self.amaf_q[key][action] = self.amaf_q[key][action] + (leaf_v - self.amaf_q[key][action]) / self.amaf_n[key][action]
         #print('Key %s action %d' %(key, action))
         #print("MCTSMemory Update: Released the MCTSMemory updated lock, q updated %f, n updated %d", self.amaf_q[key][action], self.amaf_n[key][action])
         self.lock.release()
 
-    # TODO: deleting the whole row may not be good idea?
-    # Assumes that lock is already acquired
     def _remove_last_element(self):
-        #print("Removing elements from MCTS Memory buffer")
+        ''' Removes the least recently used element in the buffer '''
         k = self.key.pop()
         self.amaf_q.pop(k, None)
         self.amaf_n.pop(k, None)
 
     def get_amaf_q(self, key, action):
+        ''' Returns the stored q value '''
         self.lock.acquire()
-        #print("MCTSMemory Update: Acquired the MCTSMemory q lock")
         q = 0
         if key in self.keys:
             q = self.amaf_q[key][action]
             self.keys.remove(key)
             self.keys.insert(0, key)
-            #print("Retrieved q value")
-        #print('Key %s action %d' % (key, action))
-        #print("MCTSMemory Update: Released the MCTSMemory q lock, q returned %f" % q)
         self.lock.release()
         return q
 
     def get_amaf_n(self, key, action):
+        ''' Returns the stored N count '''
         self.lock.acquire()
-        #print("MCTSMemory Update: Acquired the MCTSMemory n lock")
         n = 0
         if key in self.keys:
             n = self.amaf_n[key][action]
             self.keys.remove(key)
             self.keys.insert(0, key)
-        #print("MCTSMemory Update: Released the MCTSMemory n lock")
         self.lock.release()
         return n
 
     def get_size(self):
+        ''' Returns the current size of the buffer '''
         self.lock.acquire()
         s = self.size
         self.lock.release()

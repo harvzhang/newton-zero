@@ -4,10 +4,10 @@ from random import random
 from time import sleep
 import numpy as np
 
-from newton_zero.agent.model_connect4 import Connect4Model
-from newton_zero.agent.player_connect4 import Connect4Player
+from newton_zero.agent.model_newton import NewtonModel
+from newton_zero.agent.player_newton import NewtonPlayer
 from newton_zero.config import Config
-from newton_zero.env.newton_env import Connect4Env, Winner, Player
+from newton_zero.env.newton_env import NewtonEnv, Winner, Player
 from newton_zero.lib import tf_util
 from newton_zero.lib.data_helper import get_next_generation_model_dirs
 from newton_zero.lib.model_helpler import save_as_best_model, load_best_model_weight, load_baseline_model_weight
@@ -186,10 +186,10 @@ class EvaluateWorker:
     def play_game(self, best_model, ng_model):
         ''' Plays a single game between the best model and candidate model'''
 
-        env = Connect4Env().reset()
+        env = NewtonEnv().reset()
 
-        best_player = Connect4Player(self.config, best_model, play_config=self.config.eval.play_config)
-        ng_player = Connect4Player(self.config, ng_model, play_config=self.config.eval.play_config)
+        best_player = NewtonPlayer(self.config, best_model, play_config=self.config.eval.play_config)
+        ng_player = NewtonPlayer(self.config, ng_model, play_config=self.config.eval.play_config)
         best_is_white = random() < 0.5
         if not best_is_white:
             black, white = best_player, ng_player
@@ -219,12 +219,12 @@ class EvaluateWorker:
         return ng_win, best_is_white
 
     def load_best_model(self):
-        model = Connect4Model(self.config)
+        model = NewtonModel(self.config)
         load_best_model_weight(model)
         return model
 
     def load_baseline_model(self):
-        model = Connect4Model(self.config)
+        model = NewtonModel(self.config)
         load_baseline_model_weight(model)
         return model
 
@@ -240,7 +240,7 @@ class EvaluateWorker:
         model_dir = dirs[-1] if self.config.eval.evaluate_latest_first else dirs[0]
         config_path = os.path.join(model_dir, rc.next_generation_model_config_filename)
         weight_path = os.path.join(model_dir, rc.next_generation_model_weight_filename)
-        model = Connect4Model(self.config)
+        model = NewtonModel(self.config)
         model.load(config_path, weight_path)
         return model, model_dir
 

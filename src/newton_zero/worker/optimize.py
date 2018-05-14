@@ -7,14 +7,14 @@ import keras.backend as K
 import numpy as np
 from keras.optimizers import SGD
 
-from newton_zero.agent.model_connect4 import Connect4Model, objective_function_for_policy, \
+from newton_zero.agent.model_newton import NewtonModel, objective_function_for_policy, \
     objective_function_for_value
 from newton_zero.config import Config
 from newton_zero.lib import tf_util
 from newton_zero.lib.data_helper import get_game_data_filenames, read_game_data_from_file, \
     get_next_generation_model_dirs
 from newton_zero.lib.model_helpler import load_best_model_weight
-from newton_zero.env.newton_env import Connect4Env, Player
+from newton_zero.env.newton_env import NewtonEnv, Player
 
 
 logger = getLogger(__name__)
@@ -27,6 +27,10 @@ def start(config: Config):
 
 class OptimizeWorker:
     def __init__(self, config: Config):
+        '''
+        Trains the model using play data
+        :param config:
+        '''
         self.config = config
         self.model = None  # type: Connect4Model
         self.loaded_filenames = set()
@@ -35,12 +39,19 @@ class OptimizeWorker:
         self.optimizer = None
 
     def start(self):
+        ''' Entry point to the optimizer '''
         self.model = self.load_model()
         self.training()
 
     def training(self):
+        '''
+        Trains the model and saves the trained model
+        :return:
+        '''
+
         self.compile_model()
         last_load_data_step = last_save_step = total_steps = self.config.trainer.start_total_steps
+        # minimum number of data points to start the training process
         min_data_size_to_learn = 10000
         self.load_play_data()
 
@@ -51,8 +62,11 @@ class OptimizeWorker:
                 self.load_play_data()
                 continue
             self.update_learning_rate(total_steps)
+            # perform an epoch of training
             steps = self.train_epoch(self.config.trainer.epoch_to_checkpoint)
             total_steps += steps
+
+            # save the trained model and load new training data
             if last_save_step + self.config.trainer.save_model_steps < total_steps:
                 self.save_current_model()
                 last_save_step = total_steps
@@ -76,6 +90,11 @@ class OptimizeWorker:
         self.model.model.compile(optimizer=self.optimizer, loss=losses)
 
     def update_learning_rate(self, total_steps):
+        '''
+        Update the learning rate schedule based on the total number od update steps
+        :return:
+        '''
+
         # The deepmind paper says
         # ~400k: 1e-2
         # 400k~600k: 1e-3
@@ -93,6 +112,7 @@ class OptimizeWorker:
         logger.debug(f"total step={total_steps}, set learning rate to {lr}")
 
     def save_current_model(self):
+        ''' Saves the weights and configuration of current model '''
         rc = self.config.resource
         model_id = datetime.now().strftime("%Y%m%d-%H%M%S.%f")
         model_dir = os.path.join(rc.next_generation_model_dir, rc.next_generation_model_dirname_tmpl % model_id)
@@ -102,6 +122,7 @@ class OptimizeWorker:
         self.model.save(config_path, weight_path)
 
     def collect_all_loaded_data(self):
+        ''' Flatten the loaded data into arrays '''
         state_ary_list, policy_ary_list, z_ary_list = [], [], []
         for s_ary, p_ary, z_ary_ in self.loaded_data.values():
             state_ary_list.append(s_ary)
@@ -120,8 +141,9 @@ class OptimizeWorker:
         return len(self.dataset[0])
 
     def load_model(self):
-        from newton_zero.agent.model_connect4 import Connect4Model
-        model = Connect4Model(self.config)
+        ''' Load the latest candidate model '''
+        from newton_zero.agent.model_newton import NewtonModel
+        model = NewtonModel(self.config)
         rc = self.config.resource
 
         dirs = get_next_generation_model_dirs(rc)
@@ -138,6 +160,7 @@ class OptimizeWorker:
         return model
 
     def load_play_data(self):
+        ''' Load the play data produced by self play thread '''
         filenames = get_game_data_filenames(self.config.resource)
         updated = False
         for filename in filenames:
@@ -172,7 +195,7 @@ class OptimizeWorker:
     @staticmethod
     def convert_to_training_data(data):
         """
-
+        Helper function to convert saved data to training data format
         :param data: format is SelfPlayWorker.buffer
         :return:
         """
@@ -182,7 +205,7 @@ class OptimizeWorker:
         for state, policy, z in data:
             board = list(state)
             board = np.reshape(board, (8, 5))
-            env = Connect4Env().update(board, 0)
+            env = NewtonEnv().update(board, 0)
 
             black_ary, white_ary = env.black_and_white_plane()
             state = [black_ary, white_ary] if env.player_turn() == Player.black else [white_ary, black_ary]

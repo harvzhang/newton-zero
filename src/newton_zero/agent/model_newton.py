@@ -21,13 +21,21 @@ import keras
 logger = getLogger(__name__)
 
 
-class Connect4Model:
+class NewtonModel:
     def __init__(self, config: Config):
+        '''
+        Manages the model saving and loading
+        :param config: configuration settings
+        '''
         self.config = config
         self.model = None  # type: Model
         self.digest = None
 
-    def build(self):
+    def build(self, res_layers):
+        '''
+        Constructs the ResNet model based on number of layers
+        :param res_layers: number of layers in the model
+        '''
         mc = self.config.model
         in_x = x = Input((2, 8, 5))  # [own(8x8), enemy(8x8)]
 
@@ -37,9 +45,11 @@ class Connect4Model:
         x = BatchNormalization(axis=1)(x)
         x = Activation("relu")(x)
 
-        logger.debug(f"Build Model with %d Res Blocks" % mc.res_layer_num)
+        logger.debug(f"Build Model with %d Res Blocks" % res_layers)
 
-        for _ in range(mc.res_layer_num):
+        #for _ in range(mc.res_layer_num):
+        # build with number of res blocks
+        for _ in range(res_layers):
             x = self._build_residual_block(x)
 
         res_out = x
@@ -63,6 +73,7 @@ class Connect4Model:
         self.model = Model(in_x, [policy_out, value_out], name="connect4_model")
 
     def _build_residual_block(self, x):
+        ''' Build a single residual block '''
         mc = self.config.model
         in_x = x
         x = Conv2D(filters=mc.cnn_filter_num, kernel_size=mc.cnn_filter_size, padding="same",
@@ -85,6 +96,8 @@ class Connect4Model:
             return m.hexdigest()
 
     def load(self, config_path, weight_path):
+        ''' Load model with existing weights '''
+
         if os.path.exists(config_path) and os.path.exists(weight_path):
             logger.debug(f"loading model from {weight_path}")
             with open(config_path, "rt") as f:
@@ -98,6 +111,12 @@ class Connect4Model:
             return False
 
     def save(self, config_path, weight_path):
+        '''
+        Save the model into specified path
+        :param config_path: config path to save at
+        :param weight_path: weight file path to save at
+        '''
+
         logger.debug(f"save model to {weight_path}")
         with open(config_path, "wt") as f:
             json.dump(self.model.get_config(), f)
@@ -106,31 +125,27 @@ class Connect4Model:
         self.digest = self.fetch_digest(weight_path)
         logger.debug(f"saved model digest {self.digest}")
 
-        '''Harvey Add'''
-
     def update_model(self, target):
-        #copy_layers = len(m.layers)
-
-        #print(copy_layers)
+        '''
+        Update the model with the target model weights
+        :param target: the target model to copy from
+        '''
         copy_layers = target.get_num_res_layers() * 7 + 4
-        #print(copy_layers)
-        #copy_layers = int(copy_layers)
         model_layers = len(self.model.layers)
         target_layers = len(target.model.layers)
+
         # set the weights of the previous layers
         for i in range(copy_layers):
-            #print(i)
-            #print(target.model.layers[i])
             weight = target.model.layers[i].get_weights()
             self.model.layers[i].set_weights(weight)
 
+        # set the weights of the layers after the res block
         for i in range(5 * 2 + 1):
-            #print(target_layers-i-1)
-            #print(model_layers-i-1)
             weight = target.model.layers[target_layers-i-1].get_weights()
             self.model.layers[model_layers-i-1].set_weights(weight)
 
     def get_num_res_layers(self):
+        ''' Computes the number of layers in the architecture'''
         print('model layers %f' % len(self.model.layers))
         return int((len(self.model.layers) - 4 - 5 * 2 - 1) / 7)
 

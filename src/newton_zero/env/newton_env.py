@@ -12,8 +12,11 @@ Winner = enum.Enum("Winner", "black white draw")
 Player = enum.Enum("Player", "black white")
 
 
-class Connect4Env:
+class NewtonEnv:
     def __init__(self):
+        '''
+        Defines the game environment for Newton
+        '''
         self.board = None
         self.turn = 0
         self.done = False
@@ -56,17 +59,6 @@ class Connect4Env:
         self.resigned = False
         return self
 
-    '''
-    def turn_n(self):
-        turn = 0
-        for i in range(6):
-            for j in range(5):
-                if self.board[i][j] != ' ':
-                    turn += 1
-
-        return turn
-    '''
-
     def player_turn(self):
         if self.turn % 2 == 0:
             return Player.white
@@ -74,6 +66,7 @@ class Connect4Env:
             return Player.black
 
     def step(self, action):
+        ''' Changes the boarf setup based on a move '''
         if action is None:
             self._resigned()
             return self.board, {}
@@ -88,13 +81,7 @@ class Connect4Env:
                     self.board[i][action] = ' '
                 else:
                     self.board[i][action] = self.board[i+1][action]
-                
-                #if i == 7:
-                #    self.board[i+2][action] = ' '
-                #elif self.board[i+2][action] != ' ':
-                #    self.board[i][action] = self.board[i+1][action]
-                #    count = count + 1
-                #else: break
+
         for i in range(8):
             if self.board[i][action] == ' ':
                 self.board[i][action] = token
@@ -112,18 +99,13 @@ class Connect4Env:
         return self.board, {}
 
     def legal_moves(self):
-        #return legal
+        ''' Retuns all the legal moves at the current instant'''
         legal = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
         for j in range(5):
             for i in range(6):
                 if self.board[i+2][j] == ' ':
                     legal[j] = 1
                     break
-    
-        #token = ('X' if self.player_turn() == Player.white else 'O')
-        #for j in range(5):
-        #    if self.board[0][j] == token:
-        #        legal[j+5] = 1 
 
         return legal
 
@@ -148,7 +130,7 @@ class Connect4Env:
                         return
 
     def vertical_check(self, row, col):
-        # print("checking vert")
+        ''' Check for 5 in a row veritically '''
         five_in_a_row = False
         consecutive_count = 0
         for i in range(row, 8):
@@ -167,6 +149,7 @@ class Connect4Env:
         return five_in_a_row
 
     def horizontal_check(self, row, col):
+        ''' Check for 5 in a row horizontally '''
         five_in_a_row = False
         consecutive_count = 0
 
@@ -186,6 +169,7 @@ class Connect4Env:
         return five_in_a_row
 
     def diagonal_check(self, row, col):
+        ''' Check for 5 in a row diagonally '''
         five_in_a_row = False
         count = 0
 
@@ -239,6 +223,7 @@ class Connect4Env:
         self.resigned = True
 
     def black_and_white_plane(self):
+        ''' Flattens the board setup into a tensor '''
         board_white = np.copy(self.board)
         board_black = np.copy(self.board)
         for i in range(8):
@@ -256,6 +241,7 @@ class Connect4Env:
         return np.array(board_white), np.array(board_black)
 
     def render(self):
+        ''' prints the board setup '''
         print("\nRound: " + str(self.turn))
 
         for i in range(7, -1, -1):

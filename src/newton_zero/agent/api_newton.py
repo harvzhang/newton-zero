@@ -1,12 +1,22 @@
 from newton_zero.config import Config
 
 
-class Connect4ModelAPI:
+class NewtonModelAPI:
     def __init__(self, config: Config, agent_model):
+        '''
+        API for model prediction
+        :param config:
+        :param agent_model:
+        '''
         self.config = config
         self.agent_model = agent_model
 
     def predict(self, x):
+        '''
+        outputs the policy and value functions
+        :param x: the input batched states
+        :return:
+        '''
         assert x.ndim in (3, 4)
         #Changed
         #assert x.shape == (2, 6, 7) or x.shape[1:] == (2, 6, 7)

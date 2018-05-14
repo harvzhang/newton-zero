@@ -25,9 +25,9 @@ Src File Structure
 The implementation file structure is divided as follows:
 
 /agent:
-- api_connect4.py: predict API for the model
-- model_connect4.py: builds the model architecture and handles saving/loading model
-- player_connect4.py: computes player action by performing MCTS
+- api_newton.py: predict API for the model
+- model_newton.py: builds the model architecture and handles saving/loading model
+- player_newton.py: computes player action by performing MCTS
 
 /configs:
 - normal.py: normal training and play configurations (recommended)

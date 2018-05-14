@@ -1,7 +1,7 @@
 from logging import getLogger
 
-from newton_zero.agent.player_connect4 import HistoryItem
-from newton_zero.agent.player_connect4 import Connect4Player, Player
+from newton_zero.agent.player_newton import HistoryItem
+from newton_zero.agent.player_newton import NewtonPlayer, Player
 from newton_zero.config import Config
 from newton_zero.lib.model_helpler import load_best_model_weight
 
@@ -10,6 +10,10 @@ logger = getLogger(__name__)
 
 class PlayWithHuman:
     def __init__(self, config: Config):
+        '''
+        Manages a games between human player and AI
+        :param config:
+        '''
         self.config = config
         self.human_color = None
         self.observers = []
@@ -20,11 +24,11 @@ class PlayWithHuman:
 
     def start_game(self, human_is_black):
         self.human_color = Player.black if human_is_black else Player.white
-        self.ai = Connect4Player(self.config, self.model)
+        self.ai = NewtonPlayer(self.config, self.model)
 
     def _load_model(self):
-        from newton_zero.agent.model_connect4 import Connect4Model
-        model = Connect4Model(self.config)
+        from newton_zero.agent.model_newton import NewtonModel
+        model = NewtonModel(self.config)
         if not load_best_model_weight(model):
             raise RuntimeError("best model not found!")
         return model
