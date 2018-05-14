@@ -25,31 +25,31 @@ Src File Structure
 The implementation file structure is divided as follows:
 
 /agent:
-    - api_connect4.py: predict API for the model
-    - model_connect4.py: builds the model architecture and handles saving/loading model
-    - player_connect4.py: computes player action by performing MCTS
+- api_connect4.py: predict API for the model
+- model_connect4.py: builds the model architecture and handles saving/loading model
+- player_connect4.py: computes player action by performing MCTS
 
 /configs:
-    - normal.py: normal training and play configurations (recommended)
-    - mini.py: reduced set of configurations
+- normal.py: normal training and play configurations (recommended)
+- mini.py: reduced set of configurations
 
 /env:
-    - newton_env.py: defines the environment for the game Newton
+- newton_env.py: defines the environment for the game Newton
 
 /lib:
-    - data_helper.py: save/load game data and fetch candidate model paths
-    - logger.py: performs logging
-    - model_helper.py: save/load models
-    - tf_util.py: manage tensorflow session
+- data_helper.py: save/load game data and fetch candidate model paths
+- logger.py: performs logging
+- model_helper.py: save/load models
+- tf_util.py: manage tensorflow session
 
 /play_game:
-    - game_model.py: manage game between human play and newton zero
-    - gui.py: display the game interface
+- game_model.py: manage game between human play and newton zero
+- gui.py: display the game interface
 
 /worker:
-    - evaluate.py: evaluates the model based on
-    - optimize.py: trains the model architecture using generated play data
-    - self_play.py: use current best model to perform self-play
+- evaluate.py: evaluates the model based on
+- optimize.py: trains the model architecture using generated play data
+- self_play.py: use current best model to perform self-play
 
 manager.py: starts appropriate thread based on specified process
 
